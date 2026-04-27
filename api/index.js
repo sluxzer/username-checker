@@ -1,9 +1,11 @@
 const express = require('express');
+const path = require('path');
 const checkRoute = require('../src/routes/check');
 
 const app = express();
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api/check', checkRoute);
 
 app.get('/health', (req, res) => {

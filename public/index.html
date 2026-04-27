@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Username Checker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    h1 span { color: #6366f1; }
+
+    .subtitle {
+      text-align: center;
+      color: #737373;
+      font-size: 14px;
+      margin-bottom: 40px;
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 14px 16px;
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 10px;
+      color: #e5e5e5;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: #6366f1;
+    }
+
+    .search-box input::placeholder {
+      color: #525252;
+    }
+
+    .platforms {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .platform-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #262626;
+      background: #171717;
+      color: #a3a3a3;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .platform-btn:hover {
+      border-color: #404040;
+      color: #e5e5e5;
+    }
+
+    .platform-btn.active {
+      background: #6366f1;
+      border-color: #6366f1;
+      color: #fff;
+    }
+
+    .search-btn {
+      width: 100%;
+      padding: 14px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .search-btn:hover { background: #4f46e5; }
+    .search-btn:disabled { background: #404040; cursor: not-allowed; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result {
+      margin-top: 32px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-card {
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      border-bottom: 1px solid #262626;
+    }
+
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #262626;
+      flex-shrink: 0;
+    }
+
+    .avatar-placeholder {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #262626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #525252;
+      flex-shrink: 0;
+    }
+
+    .user-info { flex: 1; min-width: 0; }
+
+    .user-name {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .verified {
+      width: 16px;
+      height: 16px;
+      background: #6366f1;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .verified svg { width: 10px; height: 10px; }
+
+    .user-id {
+      font-size: 13px;
+      color: #737373;
+      margin-top: 2px;
+    }
+
+    .platform-tag {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .tag-tiktok { background: #1a1a2e; color: #ff0050; }
+    .tag-instagram { background: #1a1a12; color: #f59e0b; }
+    .tag-twitter { background: #0f1a2e; color: #38bdf8; }
+    .tag-youtube { background: #1a1212; color: #ef4444; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 16px 20px;
+    }
+
+    .stat { text-align: center; }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #525252;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .bio {
+      padding: 12px 20px 20px;
+      font-size: 13px;
+      color: #a3a3a3;
+      line-height: 1.5;
+      border-top: 1px solid #262626;
+    }
+
+    .not-found {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .not-found-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .not-found h3 {
+      font-size: 16px;
+      color: #e5e5e5;
+      margin-bottom: 4px;
+    }
+
+    .not-found p {
+      font-size: 13px;
+      color: #525252;
+    }
+
+    .error-msg {
+      text-align: center;
+      padding: 20px;
+      color: #ef4444;
+      font-size: 14px;
+    }
+
+    @media (max-width: 480px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px 0; }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Username<span>Checker</span></h1>
+    <p class="subtitle">Check social media accounts across platforms</p>
+
+    <div class="search-box">
+      <input type="text" id="username" placeholder="Enter a username..." autocomplete="off">
+    </div>
+
+    <div class="platforms" id="platforms">
+      <button class="platform-btn active" data-platform="tiktok">TikTok</button>
+      <button class="platform-btn" data-platform="instagram">Instagram</button>
+      <button class="platform-btn" data-platform="twitter">Twitter / X</button>
+      <button class="platform-btn" data-platform="youtube">YouTube</button>
+    </div>
+
+    <button class="search-btn" id="searchBtn" onclick="search()">Check</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    let selectedPlatform = 'tiktok';
+    const API = window.location.origin + '/api/check';
+
+    document.querySelectorAll('.platform-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.platform-btn.active').classList.remove('active');
+        btn.classList.add('active');
+        selectedPlatform = btn.dataset.platform;
+      });
+    });
+
+    document.getElementById('username').addEventListener('keydown', e => {
+      if (e.key === 'Enter') search();
+    });
+
+    async function search() {
+      const username = document.getElementById('username').value.trim();
+      if (!username) return;
+
+      const btn = document.getElementById('searchBtn');
+      const result = document.getElementById('result');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Checking...';
+      result.innerHTML = '';
+
+      try {
+        const res = await fetch(`${API}/${selectedPlatform}/${encodeURIComponent(username)}`);
+        const json = await res.json();
+
+        if (!json.success) {
+          result.innerHTML = `<div class="result"><div class="result-card"><div class="error-msg">${json.error.message}</div></div></div>`;
+          return;
+        }
+
+        const d = json.data;
+
+        if (!d.exists) {
+          result.innerHTML = `
+            <div class="result">
+              <div class="result-card">
+                <div class="not-found">
+                  <div class="not-found-icon">:(</div>
+                  <h3>Not found</h3>
+                  <p>"${escapeHtml(username)}" doesn't exist on ${json.platform}</p>
+                </div>
+              </div>
+            </div>`;
+          return;
+        }
+
+        const avatar = d.avatar
+          ? `<img class="avatar" src="${escapeHtml(d.avatar)}" alt="" onerror="this.outerHTML='<div class=\\'avatar-placeholder\\'>${escapeHtml((d.username||username)[0].toUpperCase())}</div>'">`
+          : `<div class="avatar-placeholder">${escapeHtml((d.username || username)[0].toUpperCase())}</div>`;
+
+        const verified = d.verified ? `<span class="verified"><svg viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span>` : '';
+
+        result.innerHTML = `
+          <div class="result">
+            <div class="result-card">
+              <div class="result-header">
+                ${avatar}
+                <div class="user-info">
+                  <div class="user-name">${escapeHtml(d.username || d.id)} ${verified}</div>
+                  <div class="user-id">@${escapeHtml(d.id)}</div>
+                </div>
+                <span class="platform-tag tag-${d.platform}">${d.platform}</span>
+              </div>
+              <div class="stats-grid">
+                ${statCard(d.stats.followers, 'Followers')}
+                ${statCard(d.stats.following, 'Following')}
+                ${statCard(d.stats.likes, 'Likes')}
+                ${statCard(d.stats.posts, 'Posts')}
+              </div>
+              ${d.extras && d.extras.bio ? `<div class="bio">${escapeHtml(d.extras.bio)}</div>` : ''}
+            </div>
+          </div>`;
+      } catch (err) {
+        result.innerHTML = `<div class="result"><div class="result-card"><div class="error-msg">Failed to fetch. Make sure the API is running.</div></div></div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Check';
+      }
+    }
+
+    function statCard(value, label) {
+      return `<div class="stat"><div class="stat-value">${formatNumber(value)}</div><div class="stat-label">${label}</div></div>`;
+    }
+
+    function formatNumber(n) {
+      if (n === null || n === undefined) return '-';
+      if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return n.toLocaleString();
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
