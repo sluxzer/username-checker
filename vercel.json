@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/check/(.*)", "destination": "/api/index.js" },
+    { "source": "/api/check/:match*", "destination": "/api/index.js" },
     { "source": "/health", "destination": "/api/index.js" }
   ]
 }
