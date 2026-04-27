@@ -11,25 +11,22 @@ async function check(username) {
     const response = await axios.get(url, {
       timeout: TIMEOUT,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'en-US,en;q=0.9',
       },
     });
 
     const html = response.data;
-
-    // Try extracting from __UNIVERSAL_DATA_FOR_REHYDRATION__
-    const scriptUniversal = html.match(/window\['__UNIVERSAL_DATA_FOR_REHYDRATION__'\]\s*=\s*({.+?})\s*;?\s*<\/script>/s);
-    // Also try SIGI_STATE as fallback
     const $ = cheerio.load(html);
-    const scriptSigi = $('script#SIGI_STATE').html();
 
     let userData = null;
 
-    if (scriptUniversal) {
+    // Method 1: <script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">{...}</script>
+    const jsonScript = $('script#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();
+    if (jsonScript) {
       try {
-        const json = JSON.parse(scriptUniversal[1]);
+        const json = JSON.parse(jsonScript);
         const scopes = json['__DEFAULT_SCOPE__'];
         if (scopes) {
           const detailModule = scopes['webapp.user-detail'];
@@ -42,15 +39,38 @@ async function check(username) {
       }
     }
 
-    if (!userData && scriptSigi) {
-      try {
-        const json = JSON.parse(scriptSigi);
-        const userModule = json['UserModule'];
-        if (userModule) {
-          userData = userModule.users && Object.values(userModule.users)[0];
+    // Method 2: window['__UNIVERSAL_DATA_FOR_REHYDRATION__'] = {...}
+    if (!userData) {
+      const scriptUniversal = html.match(/window\['__UNIVERSAL_DATA_FOR_REHYDRATION__'\]\s*=\s*({.+?})\s*;?\s*<\/script>/s);
+      if (scriptUniversal) {
+        try {
+          const json = JSON.parse(scriptUniversal[1]);
+          const scopes = json['__DEFAULT_SCOPE__'];
+          if (scopes) {
+            const detailModule = scopes['webapp.user-detail'];
+            if (detailModule) {
+              userData = detailModule.userInfo;
+            }
+          }
+        } catch (e) {
+          // fallback below
         }
-      } catch (e) {
-        // continue
+      }
+    }
+
+    // Method 3: SIGI_STATE fallback
+    if (!userData) {
+      const scriptSigi = $('script#SIGI_STATE').html();
+      if (scriptSigi) {
+        try {
+          const json = JSON.parse(scriptSigi);
+          const userModule = json['UserModule'];
+          if (userModule) {
+            userData = userModule.users && Object.values(userModule.users)[0];
+          }
+        } catch (e) {
+          // continue
+        }
       }
     }
 

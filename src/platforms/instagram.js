@@ -13,6 +13,20 @@ function parseCount(str) {
   return parseInt(cleaned, 10);
 }
 
+function notFound(username) {
+  return {
+    id: username,
+    platform: 'instagram',
+    username: null,
+    avatar: null,
+    verified: false,
+    exists: false,
+    stats: { followers: null, following: null, likes: null, posts: null },
+    extras: {},
+    raw: null,
+  };
+}
+
 async function check(username) {
   const url = `https://www.instagram.com/${encodeURIComponent(username)}/`;
 
@@ -20,8 +34,8 @@ async function check(username) {
     const response = await axios.get(url, {
       timeout: TIMEOUT,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        'Accept': 'text/html',
         'Accept-Language': 'en-US,en;q=0.9',
       },
     });
@@ -32,31 +46,23 @@ async function check(username) {
     const metaDesc = $('meta[name="description"]').attr('content') || '';
     const ogTitle = $('meta[property="og:title"]').attr('content') || '';
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
+    const ogDesc = $('meta[property="og:description"]').attr('content') || '';
 
-    const followerMatch = metaDesc.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
-    const followingMatch = metaDesc.match(/([\d,]+\.?\d*[kKmM]?)\s+Following/i);
-    const postsMatch = metaDesc.match(/([\d,]+\.?\d*[kKmM]?)\s+Posts/i);
-
-    if (!metaDesc && !ogTitle) {
-      return {
-        id: username,
-        platform: 'instagram',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+    const source = metaDesc || ogDesc;
+    if (!source && !ogTitle) {
+      return notFound(username);
     }
 
-    const displayName = ogTitle.replace(/\s*\(@.*\)$/, '').trim() || username;
+    const followerMatch = source.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
+    const followingMatch = source.match(/([\d,]+\.?\d*[kKmM]?)\s+Following/i);
+    const postsMatch = source.match(/([\d,]+\.?\d*[kKmM]?)\s+Posts/i);
+
+    const displayName = ogTitle.replace(/\s*\(@.*\)\s*•?\s*Instagram.*$/, '').trim() || username;
 
     return {
       id: username,
       platform: 'instagram',
-      username: displayName,
+      username: displayName || null,
       avatar: ogImage || null,
       verified: false,
       exists: true,
@@ -67,23 +73,13 @@ async function check(username) {
         posts: parseCount(postsMatch ? postsMatch[1] : null),
       },
       extras: {
-        bio: metaDesc,
+        bio: source,
       },
-      raw: { metaDescription: metaDesc, ogTitle, ogImage },
+      raw: { metaDescription: metaDesc, ogTitle, ogImage, ogDescription: ogDesc },
     };
   } catch (err) {
     if (err.response && err.response.status === 404) {
-      return {
-        id: username,
-        platform: 'instagram',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+      return notFound(username);
     }
 
     if (err.response && err.response.status === 429) {
