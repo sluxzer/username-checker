@@ -23,8 +23,11 @@ async function check(username) {
       maxRedirects: 5,
     });
 
-    const html = typeof response.data === 'string' ? response.data : '';
-    if (!html || html.includes('error') && html.includes('something went wrong')) {
+    let html = typeof response.data === 'string' ? response.data : '';
+    if (!html && typeof response.data === 'object') {
+      html = JSON.stringify(response.data);
+    }
+    if (!html || (html.includes('error') && html.includes('something went wrong'))) {
       return notFound(username);
     }
 

@@ -7,14 +7,28 @@ const TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT || '10000', 10);
 function parseCount(str) {
   if (!str) return null;
   const lower = str.toLowerCase();
-  const num = lower.match(/([\d.]+)\s*(k|m|b)?/i);
+  const num = lower.match(/([\d,]+\.?\d*)\s*(k|m|b|jt|rb)?/i);
   if (!num) return null;
-  const val = parseFloat(num[1]);
+  const val = parseFloat(num[1].replace(/,/g, ''));
   const mult = num[2] ? num[2].toLowerCase() : '';
-  if (mult === 'k') return Math.round(val * 1000);
-  if (mult === 'm') return Math.round(val * 1000000);
+  if (mult === 'k' || mult === 'rb') return Math.round(val * 1000);
+  if (mult === 'm' || mult === 'jt') return Math.round(val * 1000000);
   if (mult === 'b') return Math.round(val * 1000000000);
   return Math.round(val);
+}
+
+function notFound(username) {
+  return {
+    id: username,
+    platform: 'youtube',
+    username: null,
+    avatar: null,
+    verified: false,
+    exists: false,
+    stats: { followers: null, following: null, likes: null, posts: null },
+    extras: {},
+    raw: null,
+  };
 }
 
 async function check(username) {
@@ -31,30 +45,44 @@ async function check(username) {
       },
     });
 
-    const html = response.data;
+    let html = typeof response.data === 'string' ? response.data : '';
+    if (!html && typeof response.data === 'object') {
+      html = JSON.stringify(response.data);
+    }
+
     const $ = cheerio.load(html);
 
     const ogTitle = $('meta[property="og:title"]').attr('content') || '';
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
     const ogDescription = $('meta[property="og:description"]').attr('content') || '';
 
-    if (html.includes('404 Not Found') || html.includes('This channel does not exist') || !ogTitle) {
-      return {
-        id: username,
-        platform: 'youtube',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+    if (!ogTitle || html.includes('404 Not Found') || html.includes('This channel does not exist')) {
+      return notFound(username);
     }
 
-    const subscriberCount = parseCount(ogDescription);
-    const videoCountMatch = ogDescription.match(/([\d,]+)\s+videos?/i);
-    const videoCount = videoCountMatch ? parseInt(videoCountMatch[1].replace(/,/g, ''), 10) : null;
+    // Try og:description first
+    let subscriberCount = parseCount(ogDescription);
+    let videoCount = null;
+
+    // Try subscriberCountText from page JSON
+    if (!subscriberCount) {
+      const subsMatch = html.match(/subscriberCountText.*?"simpleText"\s*:\s*"([^"]+)"/);
+      if (subsMatch) {
+        subscriberCount = parseCount(subsMatch[1]);
+      }
+    }
+
+    // Try videoCountText from page JSON
+    const videoMatch = html.match(/"videoCountText".*?"simpleText"\s*:\s*"([^"]+)"/);
+    if (videoMatch) {
+      const vNum = videoMatch[1].match(/([\d,]+\.?\d*)/);
+      videoCount = vNum ? parseInt(vNum[1].replace(/,/g, ''), 10) : null;
+    }
+
+    if (!videoCount) {
+      const videoDescMatch = ogDescription.match(/([\d,]+)\s+videos?/i);
+      videoCount = videoDescMatch ? parseInt(videoDescMatch[1].replace(/,/g, ''), 10) : null;
+    }
 
     return {
       id: username,
@@ -76,17 +104,7 @@ async function check(username) {
     };
   } catch (err) {
     if (err.response && err.response.status === 404) {
-      return {
-        id: username,
-        platform: 'youtube',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+      return notFound(username);
     }
 
     if (err.response && err.response.status === 429) {

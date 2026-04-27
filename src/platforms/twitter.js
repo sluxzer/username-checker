@@ -4,13 +4,18 @@ const { PlatformError, RateLimitedError } = require('../utils/errors');
 
 const TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT || '10000', 10);
 
-function parseCount(str) {
-  if (!str) return null;
-  const cleaned = str.replace(/,/g, '');
-  const lower = cleaned.toLowerCase();
-  if (lower.endsWith('k')) return Math.round(parseFloat(lower) * 1000);
-  if (lower.endsWith('m')) return Math.round(parseFloat(lower) * 1000000);
-  return parseInt(cleaned, 10);
+function notFound(username) {
+  return {
+    id: username,
+    platform: 'twitter',
+    username: null,
+    avatar: null,
+    verified: false,
+    exists: false,
+    stats: { followers: null, following: null, likes: null, posts: null },
+    extras: {},
+    raw: null,
+  };
 }
 
 async function check(username) {
@@ -20,70 +25,62 @@ async function check(username) {
     const response = await axios.get(url, {
       timeout: TIMEOUT,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'en-US,en;q=0.9',
       },
     });
 
-    const html = response.data;
-    const $ = cheerio.load(html);
-
-    const ogTitle = $('meta[property="og:title"]').attr('content') || '';
-    const ogImage = $('meta[property="og:image"]').attr('content') || '';
-    const ogDescription = $('meta[property="og:description"]').attr('content') || '';
-
-    if (ogTitle.includes('Log in') || ogTitle.includes('Sign up') || html.includes('This account doesn')) {
-      return {
-        id: username,
-        platform: 'twitter',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+    let html = typeof response.data === 'string' ? response.data : '';
+    if (!html && typeof response.data === 'object') {
+      html = JSON.stringify(response.data);
     }
 
-    const followerMatch = ogDescription.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
-    const followingMatch = ogDescription.match(/([\d,]+\.?\d*[kKmM]?)\s+Following/i);
-    const postsMatch = ogDescription.match(/([\d,]+\.?\d*[kKmM]?)\s+Posts/i);
+    // Check if user data is in the JS payload
+    const screenNameMatch = html.match(new RegExp(`"screen_name"\\s*:\\s*"${username}"`, 'i'));
+    const screenNameMatchAny = html.match(/"screen_name"\s*:\s*"([^"]+)"/);
 
-    const displayName = ogTitle.replace(/\s*\(@.*\)$/, '').trim() || username;
+    if (!screenNameMatch && !screenNameMatchAny) {
+      return notFound(username);
+    }
+
+    // Find the user object closest to the matching screen_name
+    const nameMatch = html.match(/"name"\s*:\s*"([^"]+)"/);
+    const followersMatch = html.match(/"followers_count"\s*:\s*(\d+)/);
+    const friendsMatch = html.match(/"friends_count"\s*:\s*(\d+)/);
+    const statusesMatch = html.match(/"statuses_count"\s*:\s*(\d+)/);
+    const avatarMatch = html.match(/"profile_image_url_https"\s*:\s*"([^"]+)"/);
+    const verifiedMatch = html.match(/"verified"\s*:\s*(true|false)/);
+    const bioMatch = html.match(/"description"\s*:\s*"([^"]+)"/);
+
+    const avatar = avatarMatch ? avatarMatch[1].replace(/_normal\./, '.') : null;
 
     return {
       id: username,
       platform: 'twitter',
-      username: displayName,
-      avatar: ogImage || null,
-      verified: false,
+      username: nameMatch ? nameMatch[1] : username,
+      avatar: avatar,
+      verified: verifiedMatch ? verifiedMatch[1] === 'true' : false,
       exists: true,
       stats: {
-        followers: parseCount(followerMatch ? followerMatch[1] : null),
-        following: parseCount(followingMatch ? followingMatch[1] : null),
+        followers: followersMatch ? parseInt(followersMatch[1], 10) : null,
+        following: friendsMatch ? parseInt(friendsMatch[1], 10) : null,
         likes: null,
-        posts: parseCount(postsMatch ? postsMatch[1] : null),
+        posts: statusesMatch ? parseInt(statusesMatch[1], 10) : null,
       },
       extras: {
-        bio: ogDescription,
+        bio: bioMatch ? bioMatch[1] : null,
       },
-      raw: { ogTitle, ogImage, ogDescription },
+      raw: {
+        screen_name: screenNameMatchAny ? screenNameMatchAny[1] : null,
+        followers_count: followersMatch ? followersMatch[1] : null,
+        friends_count: friendsMatch ? friendsMatch[1] : null,
+        statuses_count: statusesMatch ? statusesMatch[1] : null,
+      },
     };
   } catch (err) {
     if (err.response && (err.response.status === 404 || err.response.status === 301)) {
-      return {
-        id: username,
-        platform: 'twitter',
-        username: null,
-        avatar: null,
-        verified: false,
-        exists: false,
-        stats: { followers: null, following: null, likes: null, posts: null },
-        extras: {},
-        raw: null,
-      };
+      return notFound(username);
     }
 
     if (err.response && err.response.status === 429) {
