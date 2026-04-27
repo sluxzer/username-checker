@@ -210,6 +210,8 @@
     .tag-instagram { background: #1a1a12; color: #f59e0b; }
     .tag-twitter { background: #0f1a2e; color: #38bdf8; }
     .tag-youtube { background: #1a1212; color: #ef4444; }
+    .tag-threads { background: #1a1a1a; color: #e5e5e5; }
+    .tag-facebook { background: #0f1a2e; color: #60a5fa; }
 
     .stats-grid {
       display: grid;
@@ -239,6 +241,28 @@
       color: #a3a3a3;
       line-height: 1.5;
       border-top: 1px solid #262626;
+    }
+
+    .profile-link {
+      display: block;
+      padding: 14px 20px;
+      border-top: 1px solid #262626;
+      color: #6366f1;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .profile-link:hover {
+      background: #1f1f1f;
+    }
+
+    .profile-link svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+      margin-left: 4px;
     }
 
     .not-found {
@@ -289,6 +313,8 @@
       <button class="platform-btn" data-platform="instagram">Instagram</button>
       <button class="platform-btn" data-platform="twitter">Twitter / X</button>
       <button class="platform-btn" data-platform="youtube">YouTube</button>
+      <button class="platform-btn" data-platform="threads">Threads</button>
+      <button class="platform-btn" data-platform="facebook">Facebook</button>
     </div>
 
     <button class="search-btn" id="searchBtn" onclick="search()">Check</button>
@@ -299,6 +325,15 @@
   <script>
     let selectedPlatform = 'tiktok';
     const API = window.location.origin + '/api/check';
+
+    const profileUrls = {
+      tiktok: (id) => `https://www.tiktok.com/@${id}`,
+      instagram: (id) => `https://www.instagram.com/${id}`,
+      twitter: (id) => `https://x.com/${id}`,
+      youtube: (id) => `https://www.youtube.com/${id.startsWith('@') ? id : '@' + id}`,
+      threads: (id) => `https://www.threads.net/@${id}`,
+      facebook: (id) => `https://www.facebook.com/${id}`,
+    };
 
     document.querySelectorAll('.platform-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -354,6 +389,11 @@
 
         const verified = d.verified ? `<span class="verified"><svg viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span>` : '';
 
+        const profileUrl = profileUrls[d.platform] ? profileUrls[d.platform](d.id) : null;
+        const linkHtml = profileUrl
+          ? `<a class="profile-link" href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer">View on ${d.platform} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg></a>`
+          : '';
+
         result.innerHTML = `
           <div class="result">
             <div class="result-card">
@@ -372,6 +412,7 @@
                 ${statCard(d.stats.posts, 'Posts')}
               </div>
               ${d.extras && d.extras.bio ? `<div class="bio">${escapeHtml(d.extras.bio)}</div>` : ''}
+              ${linkHtml}
             </div>
           </div>`;
       } catch (err) {
