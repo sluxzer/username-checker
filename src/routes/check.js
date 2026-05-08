@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPlatform, listPlatforms } = require('../platforms');
 const { AppError } = require('../utils/errors');
+const cache = require('../utils/cache');
 
 // List all supported platforms
 router.get('/', (req, res) => {
@@ -12,6 +13,7 @@ router.get('/', (req, res) => {
 // Check a username on a platform
 router.get('/:platform/:username', async (req, res, next) => {
   const { platform: platformName, username } = req.params;
+  const force = req.query.force === 'true';
 
   if (!username || username.trim() === '') {
     return res.status(400).json({
@@ -37,11 +39,36 @@ router.get('/:platform/:username', async (req, res, next) => {
     });
   }
 
+  const cacheKey = `check:${platform.name}:${username.trim().toLowerCase()}`;
+
   try {
+    // Check cache first if not forced
+    if (!force) {
+      const cachedData = await cache.get(cacheKey);
+      if (cachedData) {
+        return res.json({
+          success: true,
+          platform: platform.name,
+          fromCache: true,
+          data: cachedData,
+        });
+      }
+    }
+
     const data = await platform.check(username.trim());
+    
+    // Store in cache for 24 hours (86400 seconds)
+    if (data && data.exists !== false) {
+      await cache.set(cacheKey, data, 86400);
+    } else if (data && data.exists === false) {
+      // Cache non-existent accounts for shorter time (1 hour)
+      await cache.set(cacheKey, data, 3600);
+    }
+
     res.json({
       success: true,
       platform: platform.name,
+      fromCache: false,
       data,
     });
   } catch (err) {
