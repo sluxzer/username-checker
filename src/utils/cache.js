@@ -1,6 +1,7 @@
 const Redis = require('ioredis');
 
-const REDIS_URL = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
+// Support Vercel KV, Upstash, or generic Redis
+const REDIS_URL = process.env.KV_URL || process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
 let redis = null;
 
 if (REDIS_URL) {
