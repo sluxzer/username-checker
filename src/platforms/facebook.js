@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { PlatformError, RateLimitedError } = require('../utils/errors');
+const { getRandomUserAgent, withRetry } = require('../utils/http');
 
 const TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT || '10000', 10);
 
@@ -8,14 +9,16 @@ async function check(username) {
   const url = `https://www.facebook.com/${encodeURIComponent(username)}`;
 
   try {
-    const response = await axios.get(url, {
-      timeout: TIMEOUT,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      maxRedirects: 5,
+    const response = await withRetry(async () => {
+      return await axios.get(url, {
+        timeout: TIMEOUT,
+        headers: {
+          'User-Agent': getRandomUserAgent(),
+          'Accept': 'text/html',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        maxRedirects: 5,
+      });
     });
 
     const html = typeof response.data === 'string' ? response.data : '';
