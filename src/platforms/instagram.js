@@ -93,21 +93,53 @@ async function checkViaScraping(username) {
         'User-Agent': getRandomUserAgent(),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'max-age=0',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
       },
+      maxRedirects: 5,
     });
 
     const html = response.data;
+    if (html.includes('login') && html.includes('password')) {
+      // Detected login wall
+      return null;
+    }
+
     const $ = cheerio.load(html);
 
+    // 1. Try JSON-LD (Search engine data)
+    const jsonLd = $('script[type="application/ld+json"]').html();
+    if (jsonLd) {
+      try {
+        const data = JSON.parse(jsonLd);
+        const mainEntity = data.mainEntityofPage;
+        if (mainEntity) {
+          const stats = {};
+          const interactions = mainEntity.interactionStatistic || [];
+          interactions.forEach(s => {
+            if (s.interactionType === 'http://schema.org/FollowAction') stats.followers = s.userInteractionCount;
+            if (s.interactionType === 'http://schema.org/WriteAction') stats.posts = s.userInteractionCount;
+          });
+
+          return {
+            id: username,
+            platform: 'instagram',
+            username: data.name || username,
+            avatar: data.image || null,
+            verified: false,
+            exists: true,
+            stats: {
+              followers: stats.followers || null,
+              following: null,
+              likes: null,
+              posts: stats.posts || null,
+            },
+            extras: { bio: data.description || '', source: 'json-ld' },
+            raw: { jsonLd: data },
+          };
+        }
+      } catch (e) {}
+    }
+
+    // 2. Fallback to Meta Tags
     const metaDesc = $('meta[name="description"]').attr('content') || '';
     const ogTitle = $('meta[property="og:title"]').attr('content') || '';
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
@@ -134,7 +166,7 @@ async function checkViaScraping(username) {
         likes: null,
         posts: parseCount(postsMatch ? postsMatch[1] : null),
       },
-      extras: { bio: source },
+      extras: { bio: source, source: 'meta' },
       raw: { metaDescription: metaDesc, ogTitle, ogImage, ogDescription: ogDesc },
     };
   });
