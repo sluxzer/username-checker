@@ -140,12 +140,59 @@ async function checkViaScraping(username) {
   });
 }
 
+async function checkViaMobileAPI(username) {
+  const url = `https://i.instagram.com/api/v1/users/username_info/?username=${encodeURIComponent(username)}`;
+  
+  return withRetry(async () => {
+    const response = await axios.get(url, {
+      timeout: TIMEOUT,
+      headers: {
+        'User-Agent': 'Instagram 311.0.0.32.118 Android (33/13; 480dpi; 1080x2251; Google/pixel; sunfish; sunfish; en_US; 547953254)',
+        'X-IG-App-ID': '1217981644879628',
+        'X-ASBD-ID': '129477',
+        'Accept': '*/*',
+      },
+    });
+
+    const user = response.data?.user;
+    if (!user) return null;
+
+    return {
+      id: username,
+      platform: 'instagram',
+      username: user.full_name || user.username,
+      avatar: user.profile_pic_url || null,
+      verified: user.is_verified || false,
+      exists: true,
+      stats: {
+        followers: user.follower_count ?? null,
+        following: user.following_count ?? null,
+        likes: null,
+        posts: user.media_count ?? null,
+      },
+      extras: {
+        bio: user.biography || '',
+      },
+      raw: {
+        username: user.username,
+        isPrivate: user.is_private,
+        pk: user.pk,
+      },
+    };
+  });
+}
+
 async function check(username) {
   try {
+    // 1. Try Web API
     const result = await checkViaAPI(username);
     if (result) return result;
 
-    // Fallback to scraping if API returns no user data
+    // 2. Try Mobile API
+    const mobileResult = await checkViaMobileAPI(username);
+    if (mobileResult) return mobileResult;
+
+    // 3. Try Scraping
     const scraped = await checkViaScraping(username);
     if (scraped) return scraped;
 
@@ -154,12 +201,16 @@ async function check(username) {
     if (err.response?.status === 404) return notFound(username);
     if (err.response?.status === 429) throw new RateLimitedError('instagram');
 
-    // If API fails, try scraping as fallback
+    // Attempt fallbacks on other errors
+    try {
+      const mobileResult = await checkViaMobileAPI(username);
+      if (mobileResult) return mobileResult;
+    } catch (_err) {}
+
     try {
       const scraped = await checkViaScraping(username);
       if (scraped) return scraped;
     } catch (_err) {
-      // If scraping also fails with 429, throw RateLimitedError
       if (_err.response?.status === 429) throw new RateLimitedError('instagram');
     }
 
