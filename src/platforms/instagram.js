@@ -182,6 +182,52 @@ async function checkViaMobileAPI(username) {
   });
 }
 
+async function checkViaEmbed(username) {
+  const url = `https://www.instagram.com/${encodeURIComponent(username)}/embed/`;
+  
+  return withRetry(async () => {
+    const response = await axios.get(url, {
+      timeout: TIMEOUT,
+      headers: {
+        'User-Agent': getRandomUserAgent(),
+        'Accept': 'text/html',
+      },
+    });
+
+    const html = response.data;
+    const $ = cheerio.load(html);
+
+    // Embed pages have a specific structure
+    const avatar = $('.Avatar').attr('src') || $('.ProfileImage').attr('src');
+    const displayName = $('.UsernameText').text().trim() || username;
+    
+    // Sometimes stats are in the description or footer of the embed
+    const bodyText = $('body').text();
+    const followerMatch = bodyText.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
+
+    if (!avatar && !bodyText.includes(username)) return null;
+
+    return {
+      id: username,
+      platform: 'instagram',
+      username: displayName || username,
+      avatar: avatar || null,
+      verified: html.includes('Verified'),
+      exists: true,
+      stats: {
+        followers: followerMatch ? parseCount(followerMatch[1]) : null,
+        following: null,
+        likes: null,
+        posts: null,
+      },
+      extras: {
+        source: 'embed',
+      },
+      raw: { embedUrl: url },
+    };
+  });
+}
+
 async function check(username) {
   try {
     // 1. Try Web API
@@ -192,19 +238,27 @@ async function check(username) {
     const mobileResult = await checkViaMobileAPI(username);
     if (mobileResult) return mobileResult;
 
-    // 3. Try Scraping
+    // 3. Try Embed Page (High resilience)
+    const embedResult = await checkViaEmbed(username);
+    if (embedResult) return embedResult;
+
+    // 4. Try Scraping
     const scraped = await checkViaScraping(username);
     if (scraped) return scraped;
 
     return notFound(username);
   } catch (err) {
     if (err.response?.status === 404) return notFound(username);
-    if (err.response?.status === 429) throw new RateLimitedError('instagram');
-
-    // Attempt fallbacks on other errors
+    
+    // Attempt all fallbacks even on 429/403
     try {
       const mobileResult = await checkViaMobileAPI(username);
       if (mobileResult) return mobileResult;
+    } catch (_err) {}
+
+    try {
+      const embedResult = await checkViaEmbed(username);
+      if (embedResult) return embedResult;
     } catch (_err) {}
 
     try {
@@ -214,6 +268,7 @@ async function check(username) {
       if (_err.response?.status === 429) throw new RateLimitedError('instagram');
     }
 
+    if (err.response?.status === 429) throw new RateLimitedError('instagram');
     throw new PlatformError('instagram', err.message);
   }
 }
