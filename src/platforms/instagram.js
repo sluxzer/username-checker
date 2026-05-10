@@ -260,6 +260,65 @@ async function checkViaEmbed(username) {
   });
 }
 
+async function checkViaInstrack(username) {
+  const url = `https://instrack.app/api/account/${encodeURIComponent(username)}`;
+  
+  return withRetry(async () => {
+    const instance = await createAxiosInstance({
+      headers: {
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'en-US,en;q=0.9,id;q=0.8',
+        // Dynamic tokens/cookies are hard to replicate programmatically without their API key or session handling
+        // 'aws-waf-token': '...',
+        // '_ga': '...',
+        // '_gcl_au': '...',
+        // 'XSRF-TOKEN': '...',
+        // 'instrack_session': '...',
+        'priority': 'u=1, i',
+        'referer': `https://instrack.app/instagram/${encodeURIComponent(username)}`,
+        'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'sentry-trace': '2863d3c903b84076bc7b85e55b6f5e05-badd45b2e4025752-1', // Example, might need dynamic generation
+        'x-requested-with': 'XMLHttpRequest',
+        'x-xsrf-token': 'PLACEHOLDER_FOR_DYNAMIC_TOKEN', // This token is dynamic and needs to be obtained
+      },
+      timeout: TIMEOUT,
+    });
+    
+    const response = await instance.get(url);
+
+    // Assuming response.data is JSON
+    const data = response.data;
+    if (!data || !data.data) return null; // Adjust based on actual response structure
+
+    const profile = data.data.user; // Assuming user data is here
+
+    return {
+      id: profile.pk || username, // Use pk if available, else username
+      platform: 'instagram',
+      username: profile.username || username,
+      avatar: profile.profile_pic_url || null,
+      verified: profile.is_verified || false,
+      exists: true,
+      stats: {
+        followers: profile.edge_followed_by?.count ?? null,
+        following: profile.edge_follow?.count ?? null,
+        likes: null, // Not typically available from this endpoint
+        posts: profile.edge_owner_to_timeline_media?.count ?? null,
+      },
+      extras: {
+        bio: profile.biography || '',
+        source: 'instrack_api',
+      },
+      raw: data, // Keep raw data for debugging
+    };
+  });
+}
+
 async function check(username) {
   try {
     // 1. Try Web API
@@ -273,8 +332,12 @@ async function check(username) {
     // 3. Try Embed Page (High resilience)
     const embedResult = await checkViaEmbed(username);
     if (embedResult) return embedResult;
+    
+    // 4. Try Instrack API
+    const instrackResult = await checkViaInstrack(username);
+    if (instrackResult) return instrackResult;
 
-    // 4. Try Scraping
+    // 5. Try Scraping
     const scraped = await checkViaScraping(username);
     if (scraped) return scraped;
 
@@ -291,6 +354,11 @@ async function check(username) {
     try {
       const embedResult = await checkViaEmbed(username);
       if (embedResult) return embedResult;
+    } catch (_err) {}
+
+    try {
+      const instrackResult = await checkViaInstrack(username);
+      if (instrackResult) return instrackResult;
     } catch (_err) {}
 
     try {
