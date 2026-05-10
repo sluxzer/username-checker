@@ -329,13 +329,13 @@ async function check(username) {
     const mobileResult = await checkViaMobileAPI(username);
     if (mobileResult) return mobileResult;
 
-    // 3. Try Embed Page (High resilience)
-    const embedResult = await checkViaEmbed(username);
-    if (embedResult) return embedResult;
-    
-    // 4. Try Instrack API
+    // 3. Try Instrack API
     const instrackResult = await checkViaInstrack(username);
     if (instrackResult) return instrackResult;
+
+    // 4. Try Embed Page (High resilience)
+    const embedResult = await checkViaEmbed(username);
+    if (embedResult) return embedResult;
 
     // 5. Try Scraping
     const scraped = await checkViaScraping(username);
@@ -344,7 +344,7 @@ async function check(username) {
     return notFound(username);
   } catch (err) {
     if (err.response?.status === 404) return notFound(username);
-    
+
     // Attempt all fallbacks even on 429/403
     try {
       const mobileResult = await checkViaMobileAPI(username);
@@ -352,13 +352,13 @@ async function check(username) {
     } catch (_err) {}
 
     try {
-      const embedResult = await checkViaEmbed(username);
-      if (embedResult) return embedResult;
+      const instrackResult = await checkViaInstrack(username);
+      if (instrackResult) return instrackResult;
     } catch (_err) {}
 
     try {
-      const instrackResult = await checkViaInstrack(username);
-      if (instrackResult) return instrackResult;
+      const embedResult = await checkViaEmbed(username);
+      if (embedResult) return embedResult;
     } catch (_err) {}
 
     try {
@@ -372,7 +372,6 @@ async function check(username) {
     throw new PlatformError('instagram', err.message);
   }
 }
-
 module.exports = {
   name: 'instagram',
   label: 'Instagram',
