@@ -146,7 +146,13 @@ async function checkViaScraping(username) {
     const ogDesc = $('meta[property="og:description"]').attr('content') || '';
 
     const source = metaDesc || ogDesc;
-    if (!source && !ogTitle) return null;
+    
+    // Check if it looks like a real profile
+    if (!ogTitle || ogTitle === 'Instagram' || ogTitle.toLowerCase().includes('page not found')) {
+      return null;
+    }
+
+    if (!source && !ogImage) return null;
 
     const followerMatch = source.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
     const followingMatch = source.match(/([\d,]+\.?\d*[kKmM]?)\s+Following/i);
@@ -237,7 +243,8 @@ async function checkViaEmbed(username) {
     const bodyText = $('body').text();
     const followerMatch = bodyText.match(/([\d,]+\.?\d*[kKmM]?)\s+Followers/i);
 
-    if (!avatar && !bodyText.includes(username)) return null;
+    // If no avatar and no followers found, it's likely not a profile
+    if (!avatar && !followerMatch) return null;
 
     return {
       id: username,
@@ -264,7 +271,7 @@ async function checkViaInstrack(username) {
   const url = `https://instrack.app/api/account/${encodeURIComponent(username)}`;
   
   return withRetry(async () => {
-    const instance = await createAxiosInstance({
+    const instance = axios.create({
       headers: {
         'accept': 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.9,id;q=0.8',
@@ -376,4 +383,9 @@ module.exports = {
   name: 'instagram',
   label: 'Instagram',
   check,
+  checkViaAPI,
+  checkViaMobileAPI,
+  checkViaInstrack,
+  checkViaEmbed,
+  checkViaScraping,
 };
