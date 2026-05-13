@@ -10,7 +10,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "jest",
-    "check": "node check.js"
+    "check": "node check.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +30,7 @@
     "babel-jest": "^30.4.1",
     "jest": "^30.3.0",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.9"
+    "ts-jest": "^29.4.9",
+    "wrangler": "^4.90.1"
   }
 }
