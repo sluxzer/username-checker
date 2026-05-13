@@ -179,34 +179,34 @@ async function checkViaScraping(username) {
 }
 
 async function checkViaMobileAPI(username) {
-  const url = `https://i.instagram.com/api/v1/users/username_info/?username=${encodeURIComponent(username)}`;
+  const url = `https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
   
   return withRetry(async () => {
     const response = await axios.get(url, {
       timeout: TIMEOUT,
       headers: {
-        'User-Agent': 'Instagram 311.0.0.32.118 Android (33/13; 480dpi; 1080x2251; Google/pixel; sunfish; sunfish; en_US; 547953254)',
-        'X-IG-App-ID': '1217981644879628',
-        'X-ASBD-ID': '129477',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36 Instagram 289.0.0.25.46',
+        'X-IG-App-ID': '1217981644879628', // Instagram Lite / Mobile Web App ID
         'Accept': '*/*',
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
 
-    const user = response.data?.user;
+    const user = response.data?.data?.user;
     if (!user) return null;
 
     return {
       id: username,
       platform: 'instagram',
       username: user.full_name || user.username,
-      avatar: user.profile_pic_url || null,
+      avatar: user.profile_pic_url_hd || null,
       verified: user.is_verified || false,
       exists: true,
       stats: {
-        followers: user.follower_count ?? null,
-        following: user.following_count ?? null,
+        followers: user.edge_followed_by?.count ?? null,
+        following: user.edge_follow?.count ?? null,
         likes: null,
-        posts: user.media_count ?? null,
+        posts: user.edge_owner_to_timeline_media?.count ?? null,
       },
       extras: {
         bio: user.biography || '',
@@ -214,7 +214,7 @@ async function checkViaMobileAPI(username) {
       raw: {
         username: user.username,
         isPrivate: user.is_private,
-        pk: user.pk,
+        pk: user.id,
       },
     };
   });
